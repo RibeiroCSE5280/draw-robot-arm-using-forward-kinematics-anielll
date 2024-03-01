@@ -133,12 +133,6 @@ def forward_kinematics(Phi, L1, L2, L3, L4):
   output = calc(Phi,lengths)
   T1, T2, T3, T4 = output[2]
   return(T1,T2,T3,T4, output[1])
-# def main():
-#   lengths = [5, 8, 3, 0]
-#   angles = [-30, 50, 30, 0]
-#   frames = calc(angles, lengths)[0]
-#   axes = Axes(xrange=(0,20), yrange=(-2,10), zrange=(0,6))
-#   show(frames, axes, viewup="z")
 def lerp_arrays(list1, list2, percentage):
     list3 = []
     for i in range(len(list1)):
@@ -149,6 +143,10 @@ def lerp_arrays(list1, list2, percentage):
 def move(lengths, start_angles,end_angels,plotter):
   animation_frames = 60
   fps = 60
+  camera = {
+    'position': (10, 5, 50), 
+    'focal_point': (10, 5, 0),
+  }
   for i in range(animation_frames):
     percent= i / animation_frames
     angles = lerp_arrays(start_angles, end_angels, percent)
@@ -157,7 +155,8 @@ def move(lengths, start_angles,end_angels,plotter):
     plotter.clear()
     for arm in arms:
       plotter += arm
-    plotter.show(interactive=False)
+    axes = Axes(xrange=(0,20), yrange=(-2,10), zrange=(0,6))
+    plotter.show(interactive=False,axes=axes, viewup="z",camera=camera)
     sleep(1.0/fps)
     
 def main():
