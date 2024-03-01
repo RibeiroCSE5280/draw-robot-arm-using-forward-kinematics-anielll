@@ -3,7 +3,7 @@
 
 
 from vedo import *
-
+from time import sleep
 def RotationMatrix(theta, axis_name):
     """ calculate single rotation of $theta$ matrix around x,y or z
         code from: https://programming-surgeon.com/en/euler-angle-python-en/
@@ -16,7 +16,7 @@ def RotationMatrix(theta, axis_name):
 
     c = np.cos(theta * np.pi / 180)
     s = np.sin(theta * np.pi / 180)
-	
+  
     if axis_name =='x':
         rotation_matrix = np.array([[1, 0,  0],
                                     [0, c, -s],
@@ -103,112 +103,82 @@ def getLocalFrameMatrix(R_ij, t_ij):
                      [np.zeros((1, 3)),       1]])
     
     return T_ij
-	
+  
 
+def calc(angles, lengths):
+  colors = ["yellow","red","blue","green"]
+  transforms = []
+  frames = []
+  origin = np.array([[3],[2], [0.0]]) 
+  for i in range(len(angles)):
+    arm = Cylinder(r=0.4, height=lengths[i], pos = (lengths[i]/2+0.4,0,0), c=colors[i], alpha=.8, axis=(1,0,0))
+    lengths[i] = lengths[i]+0.8
+    rot = RotationMatrix(angles[i], axis_name = 'z')
+    trans = origin if i==0 else np.array([[lengths[i-1]],[0.0],[0.0]])
+    transforms.append(getLocalFrameMatrix(rot, trans))         # Matrix of Frame 1 w.r.t. Frame 0 (i.e., the world frame)
+    if(i>0):
+      transforms[i] = transforms[i-1]@transforms[i]
+    arrows = createCoordinateFrameMesh()
+    sphere = Sphere(r=0.4).pos(0,0).color("gray").alpha(.8) 
+    Frame = arrows + arm + sphere
+    Frame.apply_transform(transforms[i])  
+    frames.append(Frame)
+    end_effector_pos = transforms[-1]@np.array([[-0.4],[0],[0],[1]])
+    end_effector_pos = [el[0] for el in end_effector_pos]
+    end_effector_pos = end_effector_pos[:-1]
+  return (frames, end_effector_pos, transforms)
+
+def forward_kinematics(Phi, L1, L2, L3, L4):
+  lengths = [L1,L2,L3,L4]
+  output = calc(Phi,lengths)
+  T1, T2, T3, T4 = output[2]
+  return(T1,T2,T3,T4, output[1])
+# def main():
+#   lengths = [5, 8, 3, 0]
+#   angles = [-30, 50, 30, 0]
+#   frames = calc(angles, lengths)[0]
+#   axes = Axes(xrange=(0,20), yrange=(-2,10), zrange=(0,6))
+#   show(frames, axes, viewup="z")
+def lerp_arrays(list1, list2, percentage):
+    list3 = []
+    for i in range(len(list1)):
+        interpolated_value = list1[i] * (1 - percentage) + list2[i] * percentage
+        list3.append(interpolated_value)
+
+    return list3
+def move(lengths, start_angles,end_angels,plotter):
+  animation_frames = 60
+  fps = 60
+  for i in range(animation_frames):
+    percent= i / animation_frames
+    angles = lerp_arrays(start_angles, end_angels, percent)
+    lcopy = [i for i in lengths]
+    arms =calc(angles,lcopy)[0]
+    plotter.clear()
+    for arm in arms:
+      plotter += arm
+    plotter.show(interactive=False)
+    sleep(1.0/fps)
+    
 def main():
-
-	# Set the limits of the graph x, y, and z ranges 
-	axes = Axes(xrange=(0,20), yrange=(-2,10), zrange=(0,6))
-
-	# Lengths of arm parts 
-	L1 = 5   # Length of link 1
-	L2 = 8   # Length of link 2
-
-	# Joint angles 
-	phi1 = 30     # Rotation angle of part 1 in degrees
-	phi2 = -10    # Rotation angle of part 2 in degrees
-	phi3 = 0      # Rotation angle of the end-effector in degrees
-	
-	# Matrix of Frame 1 (written w.r.t. Frame 0, which is the previous frame) 
-	R_01 = RotationMatrix(phi1, axis_name = 'z')   # Rotation matrix
-	p1   = np.array([[3],[2], [0.0]])              # Frame's origin (w.r.t. previous frame)
-	t_01 = p1                                      # Translation vector
-	
-	T_01 = getLocalFrameMatrix(R_01, t_01)         # Matrix of Frame 1 w.r.t. Frame 0 (i.e., the world frame)
-	
-	# Create the coordinate frame mesh and transform
-	Frame1Arrows = createCoordinateFrameMesh()
-	
-	# Now, let's create a cylinder and add it to the local coordinate frame
-	link1_mesh = Cylinder(r=0.4, 
-	                      height=L1, 
-	                      pos = (L1/2,0,0),
-	                      c="yellow", 
-	                      alpha=.8, 
-	                      axis=(1,0,0)
-	                      )
-	
-	# Also create a sphere to show as an example of a joint
-	r1 = 0.4
-	sphere1 = Sphere(r=r1).pos(-r1,0,0).color("gray").alpha(.8)
-
-	# Combine all parts into a single object 
-	Frame1 = Frame1Arrows + link1_mesh + sphere1
-
-	# Transform the part to position it at its correct location and orientation 
-	Frame1.apply_transform(T_01)  
-	
-
-
-
-
-
-	
-	# Matrix of Frame 2 (written w.r.t. Frame 1, which is the previous frame) 	
-	R_12 = RotationMatrix(phi2, axis_name = 'z')   # Rotation matrix
-	p2   = np.array([[L1],[0.0], [0.0]])           # Frame's origin (w.r.t. previous frame)
-	t_12 = p2                                      # Translation vector
-	
-	# Matrix of Frame 2 w.r.t. Frame 1 
-	T_12 = getLocalFrameMatrix(R_12, t_12)
-	
-	# Matrix of Frame 2 w.r.t. Frame 0 (i.e., the world frame)
-	T_02 = T_01 @ T_12
-	
-	# Create the coordinate frame mesh and transform
-	Frame2Arrows = createCoordinateFrameMesh()
-	
-	# Now, let's create a cylinder and add it to the local coordinate frame
-	link2_mesh = Cylinder(r=0.4, 
-	                      height=L2, 
-	                      pos = (L2/2,0,0),
-	                      c="red", 
-	                      alpha=.8, 
-	                      axis=(1,0,0)
-	                      )
-	
-	# Combine all parts into a single object 
-	Frame2 = Frame2Arrows + link2_mesh
-	
-	# Transform the part to position it at its correct location and orientation 
-	Frame2.apply_transform(T_02)  
-	
-	
-
-	
-	
-	# Matrix of Frame 3 (written w.r.t. Frame 2, which is the previous frame) 	
-	R_23 = RotationMatrix(phi3, axis_name = 'z')   # Rotation matrix
-	p3   = np.array([[L2],[0.0], [0.0]])           # Frame's origin (w.r.t. previous frame)
-	t_23 = p3                                      # Translation vector
-	
-	# Matrix of Frame 3 w.r.t. Frame 2 
-	T_23 = getLocalFrameMatrix(R_23, t_23)
-	
-	# Matrix of Frame 3 w.r.t. Frame 0 (i.e., the world frame)
-	T_03 = T_01 @ T_12 @ T_23
-	
-	# Create the coordinate frame mesh and transform. This point is the end-effector. So, I am 
-	# just creating the coordinate frame. 
-	Frame3 = createCoordinateFrameMesh()
-
-	# Transform the part to position it at its correct location and orientation 
-	Frame3.apply_transform(T_03)  
-
-	# Show everything 
-	show([Frame1, Frame2, Frame3], axes, viewup="z").close()
-	
-
+  lengths = [5, 8, 3, 0]
+  plotter = Plotter()
+  angles = [-30, 50, 30, 0]
+  end_angles= [30, -50, -30, 0]
+  move(lengths,angles,end_angles,plotter)
+  angles = end_angles
+  end_angles = [45, -60, 15, 0]  # New array for the end angles
+  move(lengths, angles, end_angles, plotter)
+  angles = end_angles
+  end_angles = [-15, 70, -45, 0]  # New array for the end angles
+  move(lengths, angles, end_angles, plotter)
+  angles = end_angles
+  end_angles = [60, -30, 0, 0]  # New array for the end angles
+  move(lengths, angles, end_angles, plotter)
+  angles = end_angles
+  end_angles = [-45, 15, 30, 0]  # New array for the end angles
+  move(lengths, angles, end_angles, plotter)
+  plotter.close()
 
 
 if __name__ == '__main__':
